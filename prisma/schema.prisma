@@ -1,0 +1,109 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  walletAddress   String   @unique
+  name            String?
+  profileImage    String?
+  isOnline        Boolean  @default(false)
+  lastSeen        DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relationships
+  sentMessages      Message[]       @relation("SentMessages")
+  receivedMessages  Message[]       @relation("ReceivedMessages")
+  conversations     Conversation[]  @relation("Participant1")
+  conversations2    Conversation[]  @relation("Participant2")
+  sentPayments      Payment[]       @relation("SenderPayments")
+  receivedPayments  Payment[]       @relation("ReceiverPayments")
+  encryptionKeys    EncryptionKey[]
+
+  @@map("users")
+}
+
+model Conversation {
+  id           String   @id @default(cuid())
+  participant1 String
+  participant2 String
+  lastMessage  String?
+  lastMessageAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  user1           User           @relation("Participant1", fields: [participant1], references: [walletAddress])
+  user2           User           @relation("Participant2", fields: [participant2], references: [walletAddress])
+  messages        Message[]
+  
+  @@unique([participant1, participant2])
+  @@map("conversations")
+}
+
+model Message {
+  id           String   @id @default(cuid())
+  content      String
+  senderId     String
+  receiverId   String
+  conversationId String
+  encrypted    Boolean  @default(true)
+  isPaid       Boolean  @default(false)
+  amount       Float?
+  currency     String?
+  txHash       String?
+  timestamp    DateTime @default(now())
+  readAt       DateTime?
+
+  // Relationships
+  sender      User      @relation("SentMessages", fields: [senderId], references: [walletAddress])
+  receiver    User      @relation("ReceivedMessages", fields: [receiverId], references: [walletAddress])
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  
+  @@map("messages")
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  sender      String
+  receiver    String
+  amount      Float
+  currency    String
+  txHash      String   @unique
+  status      String   @default("pending") // pending, completed, failed
+  timestamp   DateTime @default(now())
+  message     String?
+
+  // Relationships
+  senderUser   User   @relation("SenderPayments", fields: [sender], references: [walletAddress])
+  receiverUser User   @relation("ReceiverPayments", fields: [receiver], references: [walletAddress])
+  
+  @@map("payments")
+}
+
+model EncryptionKey {
+  id            String   @id @default(cuid())
+  userAddress  String
+  publicKey     String
+  privateKey    String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [userAddress], references: [walletAddress])
+  
+  @@unique([userAddress])
+  @@map("encryption_keys")
+}
